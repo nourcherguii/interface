@@ -1,16 +1,19 @@
 
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 public class essaye extends JFrame {
-    private DefaultListModel<String> fileListModel;
-    private JList<String> fileList;
     private JToolBar toolBar;
-    private JButton toggleToolBarButton;
-    private JLabel toggleToolBarButtonLabel;
+    private JButton toggleGridButton;
+    private boolean showGrid = false;
+    private Color currentColor = Color.BLACK;
+    private DrawingPanel canvas;
+    private JPanel dynamicPanelShapes;
+    private JPanel dynamicPanelContainers;
+    private boolean isShapesPanelVisible = false;
+    private boolean isContainersPanelVisible = false;
 
     public essaye() {
         this.setTitle("Éditeur Graphique");
@@ -20,6 +23,7 @@ public class essaye extends JFrame {
 
         // ----- Création de la barre de menu -----
         JMenuBar menubar = new JMenuBar();
+        menubar.setBackground(Color.WHITE);
 
         JMenu fichier = new JMenu("Fichier");
         JMenu edition = new JMenu("Édition");
@@ -30,7 +34,10 @@ public class essaye extends JFrame {
         fichier.add(new JMenuItem("💾 Enregistrer"));
         fichier.add(new JMenuItem("📂 Enregistrer Sous"));
         fichier.add(new JMenuItem("🔤 Renommer"));
-        fichier.add(new JMenuItem("❌ Quitter"));
+        JMenuItem quitter = new JMenuItem("❌ Quitter");
+        quitter.addActionListener(e -> System.exit(0));
+        fichier.add(quitter);
+
         fichier.add(new JMenuItem("Fermer"));
 
         edition.add(new JMenuItem("↩ Annuler"));
@@ -63,25 +70,23 @@ public class essaye extends JFrame {
         menubar.add(aide);
         this.setJMenuBar(menubar);
 
-        // ----- Barre d'outils -----
-        toolBar = new JToolBar(JToolBar.VERTICAL);
-        toolBar.setVisible(false);
+        // ----- Barre d'outils horizontale -----
+        toolBar = new JToolBar(JToolBar.HORIZONTAL);
+        toolBar.setBackground(Color.WHITE);
 
-        JButton undoButton = new JButton("↩"); // Annuler
-        JButton redoButton = new JButton("↪"); // Rétablir
-        JButton boldButton = new JButton("𝐁"); // Gras
-        JButton italicButton = new JButton("𝘐"); // Italique
-        JButton underlineButton = new JButton("U̲"); // Souligné
-        JButton colorButton = new JButton("🎨"); // Sélecteur de couleur
+        JButton undoButton = new JButton("↩");
+        JButton redoButton = new JButton("↪");
+        JButton boldButton = new JButton("𝐁");
+        JButton italicButton = new JButton("𝘐");
+        JButton underlineButton = new JButton("U̲");
+        JButton colorButton = new JButton("🎨");
+        toggleGridButton = new JButton("Grille");
 
-        // Sélection de taille de texte
         String[] fontSizes = {"8pt", "10pt", "12pt", "14pt", "16pt"};
         JComboBox<String> fontSizeBox = new JComboBox<>(fontSizes);
 
-        // Slider pour épaisseur du trait
         JSlider thicknessSlider = new JSlider(1, 10, 2);
 
-        // Ajout des composants à la barre d'outils
         toolBar.add(undoButton);
         toolBar.add(redoButton);
         toolBar.addSeparator();
@@ -92,57 +97,103 @@ public class essaye extends JFrame {
         toolBar.addSeparator();
         toolBar.add(colorButton);
         toolBar.add(thicknessSlider);
+        toolBar.add(toggleGridButton);
 
-        this.add(toolBar, BorderLayout.WEST);
-
-        // ----- Bouton pour afficher/masquer la barre d'outils -----
-        toggleToolBarButton = new JButton("▶");
-        toggleToolBarButtonLabel = new JLabel("Barre d'outil");
-
-        toggleToolBarButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                toolBar.setVisible(!toolBar.isVisible());
-                if (toolBar.isVisible()) {
-                    toggleToolBarButton.setText("◀");
-                    toggleToolBarButtonLabel.setText("Masquer la barre d'outil");
-                } else {
-                    toggleToolBarButton.setText("▶");
-                    toggleToolBarButtonLabel.setText("Barre d'outil");
-                }
+        colorButton.addActionListener(e -> {
+            currentColor = JColorChooser.showDialog(this, "Choisir une couleur", currentColor);
+            if (currentColor == null) {
+                currentColor = Color.BLACK;
             }
         });
 
-        JPanel togglePanel = new JPanel(new BorderLayout());
-        togglePanel.add(toggleToolBarButton, BorderLayout.CENTER);
-        togglePanel.add(toggleToolBarButtonLabel, BorderLayout.SOUTH);
-        this.add(togglePanel, BorderLayout.WEST);
+        toggleGridButton.addActionListener(e -> {
+            showGrid = !showGrid;
+            canvas.repaint();
+        });
 
-        // ----- Liste des fichiers -----
-        fileListModel = new DefaultListModel<>();
-        fileList = new JList<>(fileListModel);
-        fileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        fileList.setFixedCellHeight(25);
-        JScrollPane fileScrollPane = new JScrollPane(fileList);
-        fileScrollPane.setPreferredSize(new Dimension(150, 0));
+        this.add(toolBar, BorderLayout.NORTH);
 
-        // Zone principale (éditeur graphique)
-        JPanel canvas = new JPanel();
+        // ----- Panneau vertical fixe -----
+        JPanel sidePanel = new JPanel(new GridLayout(2, 1));
+        JButton shapesButton = new JButton("Shapes");
+        JButton containersButton = new JButton("Containers");
+        sidePanel.add(shapesButton);
+        sidePanel.add(containersButton);
+        this.add(sidePanel, BorderLayout.WEST);
+
+        // Panneaux dynamiques
+        dynamicPanelShapes = new JPanel();
+        dynamicPanelShapes.setLayout(new FlowLayout());
+        dynamicPanelShapes.setBackground(Color.GRAY);
+        dynamicPanelShapes.setVisible(false);
+        dynamicPanelShapes.add(new JButton("Triangle"));
+        dynamicPanelShapes.add(new JButton("Cercle"));
+
+        dynamicPanelContainers = new JPanel();
+        dynamicPanelContainers.setLayout(new FlowLayout());
+        dynamicPanelContainers.setBackground(Color.GRAY);
+        dynamicPanelContainers.setVisible(false);
+        dynamicPanelContainers.add(new JButton("Boîte"));
+        dynamicPanelContainers.add(new JButton("Panneau"));
+
+        // Panneau conteneur des panneaux dynamiques
+        JPanel dynamicContainer = new JPanel();
+        dynamicContainer.setLayout(new GridLayout(2, 1));
+        dynamicContainer.add(dynamicPanelShapes);
+        dynamicContainer.add(dynamicPanelContainers);
+
+        // Zone principale avec le panneau de dessin
+        canvas = new DrawingPanel();
         canvas.setBackground(Color.WHITE);
 
-        this.add(fileScrollPane, BorderLayout.EAST);
-        this.add(canvas, BorderLayout.CENTER);
+        // Panneau central contenant dynamicContainer et canvas
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.add(dynamicContainer, BorderLayout.WEST);
+        centerPanel.add(canvas, BorderLayout.CENTER);
+        this.add(centerPanel, BorderLayout.CENTER);
 
-        // ----- Zone de commande -----
-        JPanel commandPanel = new JPanel(new BorderLayout());
-        JTextField commandField = new JTextField();
-        JButton executeButton = new JButton("⚡ Exécuter");
+        // Actions des boutons
+        shapesButton.addActionListener(e -> {
+            isShapesPanelVisible = !isShapesPanelVisible;
+            isContainersPanelVisible = false;
+            dynamicPanelShapes.setVisible(isShapesPanelVisible);
+            dynamicPanelContainers.setVisible(false);
+            this.revalidate();
+            this.repaint();
+        });
 
-        commandPanel.add(commandField, BorderLayout.CENTER);
-        commandPanel.add(executeButton, BorderLayout.EAST);
-        this.add(commandPanel, BorderLayout.SOUTH);
+        containersButton.addActionListener(e -> {
+            isContainersPanelVisible = !isContainersPanelVisible;
+            isShapesPanelVisible = false;
+            dynamicPanelContainers.setVisible(isContainersPanelVisible);
+            dynamicPanelShapes.setVisible(false);
+            this.revalidate();
+            this.repaint();
+        });
+
 
         this.setVisible(true);
+    }
+
+    // Classe interne pour dessiner la grille
+    private class DrawingPanel extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (showGrid) {
+                dessinerGrille(g);
+            }
+        }
+
+        private void dessinerGrille(Graphics g) {
+            g.setColor(Color.LIGHT_GRAY);
+            for (int i = 0; i < getWidth(); i += 20) {
+                g.drawLine(i, 0, i, getHeight());
+            }
+            for (int j = 0; j < getHeight(); j += 20) {
+                g.drawLine(0, j, getWidth(), j);
+            }
+        }
     }
 
     public static void main(String[] args) {
